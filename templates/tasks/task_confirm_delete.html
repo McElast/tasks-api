@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Удаление | Tasks App{% endblock %}
+
+{% block content %}
+    <section class='panel narrow-panel'>
+        <div class='panel-header'>
+            <span class='eyebrow'>Удаление</span>
+            <h1>Удалить задачу?</h1>
+            <p>Действие доступно только автору и не может быть отменено.</p>
+        </div>
+        <div class='delete-summary'>
+            <h2>{{ object.title|truncatechars:120 }}</h2>
+            <p>{{ object.description|default:'Описание не добавлено.'|truncatechars:200 }}</p>
+        </div>
+        <form method='post' class='action-row'>
+            {% csrf_token %}
+            <button class='danger-button' type='submit'>Удалить задачу</button>
+            <a class='secondary-button' href='{% url "task-detail" task_id=object.id %}'>Отмена</a>
+        </form>
+    </section>
+{% endblock %}

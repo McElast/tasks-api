@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }} | Tasks App{% endblock %}
+
+{% block content %}
+    <section class='panel'>
+        <div class='panel-header'>
+            <span class='eyebrow'>Форма задачи</span>
+            <h1>{{ page_title }}</h1>
+            <p>Один и тот же сервисный слой обрабатывает создание и обновление.</p>
+        </div>
+        <form method='post' class='form-grid wide-form'>
+            {% csrf_token %}
+            {% for field in form %}
+                <div class='field-group'>
+                    <label for='{{ field.id_for_label }}'>{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}
+                        <small class='field-help'>{{ field.help_text }}</small>
+                    {% endif %}
+                    {% if field.errors %}
+                        <div class='field-error'>{{ field.errors|join:', ' }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <div class='field-error'>{{ form.non_field_errors|join:', ' }}</div>
+            {% endif %}
+            <div class='action-row'>
+                <button class='primary-button' type='submit'>{{ submit_label }}</button>
+                <a class='secondary-button' href='{% url "task-list" %}'>Отмена</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

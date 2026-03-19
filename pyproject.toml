@@ -1,0 +1,76 @@
+[project]
+name = 'tasks-app'
+version = '0.1.0'
+description = 'Task management web app built with Django and DRF.'
+readme = 'README.md'
+requires-python = '>=3.14,<3.15'
+dependencies = [
+    'adrf>=0.1,<0.2',
+    'django==6.0.3',
+    'djangorestframework>=3.16,<3.17',
+    'djangorestframework-simplejwt>=5.5,<5.6',
+    'drf-spectacular>=0.28,<0.29',
+    'uvicorn>=0.35,<0.36',
+]
+
+[dependency-groups]
+dev = [
+    'django-stubs[compatible-mypy]>=5.2,<5.3',
+    'djangorestframework-stubs>=3.16,<3.17',
+    'mypy>=1.18,<1.19',
+    'pytest>=8.4,<8.5',
+    'pytest-asyncio>=1.2,<1.3',
+    'pytest-django>=4.11,<4.12',
+    'ruff>=0.13,<0.14',
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 121
+target-version = 'py314'
+src = ['src']
+exclude = ['.idea', '.venv', '.pytest_cache', 'src/apps/tasks/migrations', 'staticfiles']
+
+[tool.ruff.lint]
+select = ['E', 'F', 'W', 'I', 'UP', 'B', 'A', 'DJ', 'PT', 'D']
+ignore = ['D203', 'D212']
+
+[tool.ruff.lint.per-file-ignores]
+'src/apps/tasks/migrations/*.py' = ['D']
+'src/config/settings/*.py' = ['F403', 'F405']
+
+[tool.ruff.lint.pydocstyle]
+convention = 'pep257'
+
+[tool.ruff.format]
+quote-style = 'single'
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = 'config.settings.test'
+pythonpath = ['src']
+testpaths = ['src/apps/tasks/tests']
+asyncio_mode = 'auto'
+addopts = ['-p', 'no:cacheprovider']
+markers = [
+    'unstable: Unstable tests.',
+    'integration: Integration tests.',
+    'module: Unit tests.',
+]
+
+[tool.mypy]
+python_version = '3.14'
+plugins = ['mypy_django_plugin.main', 'mypy_drf_plugin.main']
+strict = true
+warn_unreachable = true
+warn_return_any = true
+exclude = ['src/apps/tasks/migrations/']
+mypy_path = ['src']
+
+[[tool.mypy.overrides]]
+module = ['tests.*', 'apps.tasks.tests.*']
+ignore_errors = true
+
+[tool.django-stubs]
+django_settings_module = 'config.settings.test'

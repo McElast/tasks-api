@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Вход | Tasks App{% endblock %}
+
+{% block content %}
+    <section class='panel auth-panel'>
+        <div class='panel-header'>
+            <span class='eyebrow'>Авторизация</span>
+            <h1>Войдите в рабочее пространство</h1>
+            <p>Используйте обычную учётную запись Django для доступа к задачам и API.</p>
+        </div>
+        <form method='post' class='form-grid'>
+            {% csrf_token %}
+            {% for field in form %}
+                <div class='field-group'>
+                    <label for='{{ field.id_for_label }}'>{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class='field-error'>{{ field.errors|join:', ' }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <div class='field-error'>{{ form.non_field_errors|join:', ' }}</div>
+            {% endif %}
+            <button class='primary-button' type='submit'>Войти</button>
+        </form>
+    </section>
+{% endblock %}

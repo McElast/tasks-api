@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Задачи | Tasks App{% endblock %}
+
+{% block content %}
+    <section class='panel'>
+        <div class='list-header'>
+            <div>
+                <span class='eyebrow'>Список задач</span>
+                <h1>Ваш рабочий контур</h1>
+                <p>Показываются только задачи, где вы автор или исполнитель.</p>
+            </div>
+            <a class='primary-button' href='{% url "task-create" %}'>Создать задачу</a>
+        </div>
+
+        <div class='filter-bar'>
+            <a class='filter-chip {% if current_filter == "all" %}active{% endif %}' href='?filter=all'>Все</a>
+            <a class='filter-chip {% if current_filter == "mine" %}active{% endif %}' href='?filter=mine'>Мои</a>
+            <a class='filter-chip {% if current_filter == "assigned" %}active{% endif %}' href='?filter=assigned'>Назначенные мне</a>
+            <a class='filter-chip {% if current_filter == "active" %}active{% endif %}' href='?filter=active'>Активные</a>
+            <a class='filter-chip {% if current_filter == "completed" %}active{% endif %}' href='?filter=completed'>Завершённые</a>
+        </div>
+
+        <div class='task-grid'>
+            {% for task in tasks %}
+                <article class='task-card task-card-{{ task.status }}'>
+                    <a class='task-card-link' href='{% url "task-detail" task_id=task.id %}'>
+                        <div class='task-card-header'>
+                            <span class='status-pill status-{{ task.status }}'>{{ task.get_status_display }}</span>
+                            {% if task.is_completed %}
+                                <span class='meta-text'>Закрыта {{ task.completed_at|date:'d.m.Y H:i' }}</span>
+                            {% endif %}
+                        </div>
+                        <h2>{{ task.title|truncatechars:120 }}</h2>
+                        <p>{{ task.description|default:'Описание не добавлено.'|truncatechars:180 }}</p>
+                        <dl class='task-meta'>
+                            <div>
+                                <dt>Автор</dt>
+                                <dd>{{ task.author.username }}</dd>
+                            </div>
+                            <div>
+                                <dt>Исполнитель</dt>
+                                <dd>{{ task.assignee.username|default:'Не назначен' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Комментарии</dt>
+                                <dd>{{ task.comments.count }}</dd>
+                            </div>
+                        </dl>
+                        <span class='task-card-cta'>Открыть задачу</span>
+                    </a>
+                </article>
+            {% empty %}
+                <div class='empty-state'>
+                    <h2>Подходящих задач пока нет</h2>
+                    <p>Создайте первую задачу или переключите фильтр.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+{% endblock %}

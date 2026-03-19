@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ task.title }} | Tasks App{% endblock %}
+
+{% block content %}
+    <div class='detail-layout'>
+        <section class='panel'>
+            <div class='task-detail-header'>
+                <div>
+                    <span class='eyebrow'>Карточка задачи</span>
+                    <h1>{{ task.title }}</h1>
+                </div>
+                <span class='status-pill status-{{ task.status }}'>{{ task.get_status_display }}</span>
+            </div>
+
+            <p class='task-description'>{{ task.description|default:'Описание не добавлено.'|linebreaksbr }}</p>
+
+            <dl class='task-meta task-meta-detail'>
+                <div>
+                    <dt>Автор</dt>
+                    <dd>{{ task.author.username }}</dd>
+                </div>
+                <div>
+                    <dt>Исполнитель</dt>
+                    <dd>{{ task.assignee.username|default:'Не назначен' }}</dd>
+                </div>
+                <div>
+                    <dt>Создана</dt>
+                    <dd>{{ task.created_at|date:'d.m.Y H:i' }}</dd>
+                </div>
+                <div>
+                    <dt>Обновлена</dt>
+                    <dd>{{ task.updated_at|date:'d.m.Y H:i' }}</dd>
+                </div>
+                <div>
+                    <dt>Завершена</dt>
+                    <dd>{{ task.completed_at|date:'d.m.Y H:i'|default:'Нет' }}</dd>
+                </div>
+            </dl>
+
+            <div class='action-row'>
+                <a class='primary-button' href='{% url "task-update" task_id=task.id %}'>Редактировать</a>
+                {% if task.is_completed %}
+                    <form method='post' action='{% url "task-reopen" task_id=task.id %}'>
+                        {% csrf_token %}
+                        <button class='secondary-button' type='submit'>Повторно открыть</button>
+                    </form>
+                {% else %}
+                    <form method='post' action='{% url "task-complete" task_id=task.id %}'>
+                        {% csrf_token %}
+                        <button class='secondary-button' type='submit'>Завершить</button>
+                    </form>
+                {% endif %}
+                {% if can_delete %}
+                    <a class='danger-button' href='{% url "task-delete" task_id=task.id %}'>Удалить</a>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class='panel'>
+            <div class='panel-header compact'>
+                <div>
+                    <span class='eyebrow'>Комментарии</span>
+                    <h2>Обсуждение задачи</h2>
+                </div>
+            </div>
+
+            <form method='post' action='{% url "task-comment-create" task_id=task.id %}' class='form-grid'>
+                {% csrf_token %}
+                {% for field in comment_form %}
+                    <div class='field-group'>
+                        <label for='{{ field.id_for_label }}'>{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class='field-error'>{{ field.errors|join:', ' }}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                <button class='primary-button' type='submit'>Добавить комментарий</button>
+            </form>
+
+            <div class='comment-list'>
+                {% for comment in task.comments.all %}
+                    <article class='comment-card{% if comment.author_id == task.author_id %} comment-card-author{% elif task.assignee_id and comment.author_id == task.assignee_id %} comment-card-assignee{% endif %}'>
+                        <div class='comment-header'>
+                            <strong>{{ comment.author.username }}</strong>
+                            <div class='comment-meta'>
+                                {% if comment.author_id == task.author_id %}
+                                    <span class='comment-role comment-role-author'>Автор задачи</span>
+                                {% elif task.assignee_id and comment.author_id == task.assignee_id %}
+                                    <span class='comment-role comment-role-assignee'>Исполнитель</span>
+                                {% endif %}
+                                <span>{{ comment.created_at|date:'d.m.Y H:i' }}</span>
+                            </div>
+                        </div>
+                        <p>{{ comment.text|linebreaksbr }}</p>
+                    </article>
+                {% empty %}
+                    <div class='empty-state compact'>
+                        <p>Комментариев пока нет.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+{% endblock %}
