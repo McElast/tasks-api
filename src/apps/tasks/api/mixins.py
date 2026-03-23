@@ -7,8 +7,10 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from ..async_utils import run_sync
 from ..models import Task
-from .view_helpers import get_task_or_404, run_sync, serialize_task
+from .serializers import TaskSerializer
+from .view_helpers import get_task_or_404
 
 
 @runtime_checkable
@@ -36,4 +38,5 @@ class TaskObjectPermissionMixin:
     @staticmethod
     async def task_response(request: Request, task: Task, *, status_code: int = status.HTTP_200_OK) -> Response:
         """Сериализует задачу и возвращает стандартный Response."""
-        return Response(await run_sync(serialize_task, task, request=request), status=status_code)
+        payload = await run_sync(lambda: TaskSerializer(task, context={'request': request}).data)
+        return Response(payload, status=status_code)

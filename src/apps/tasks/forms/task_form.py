@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User
 
 from ..models import Task
+from ..services import TaskUpdateData
 from ..validation import normalize_text
 
 UserModel = get_user_model()
@@ -43,3 +44,12 @@ class TaskForm(forms.ModelForm):  # type: ignore[type-arg]
         if not title:
             raise forms.ValidationError('Заголовок задачи не может быть пустым.')
         return title
+
+    def to_update_data(self) -> TaskUpdateData:
+        """Собирает payload обновления задачи из валидной формы."""
+        return TaskUpdateData(
+            title=self.cleaned_data['title'],
+            description=self.cleaned_data['description'],
+            status=self.cleaned_data['status'],
+            assignee=self.cleaned_data['assignee'],
+        )

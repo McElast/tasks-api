@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from ..async_utils import run_sync
 from ..selectors import filter_tasks_for_user, resolve_task_filter
 from ..services import complete_task, create_comment, reopen_task
 from .async_api_view import AsyncAPIView as APIView
@@ -19,13 +20,8 @@ from .view_helpers import (
     TASK_DETAIL_RESPONSES,
     build_comment_serializer,
     build_task_serializer,
+    get_filter_from_request,
     get_request_user,
-    run_sync,
-    serialize_comment,
-    serialize_comments,
-    serialize_task,
-    serialize_tasks,
-    serialize_user,
 )
 
 
@@ -41,7 +37,9 @@ class UserMeAPIView(APIView):
     )
     async def get(self, request: Request) -> Response:
         """Сериализует текущего пользователя и возвращает ответ API."""
-        return Response(await run_sync(serialize_user, get_request_user(request)))
+        user = get_request_user(request)
+        payload = await run_sync(lambda: UserSerializer(user).data)
+        return Response(payload)
 
 
 class TaskListCreateAPIView(APIView):
@@ -56,9 +54,10 @@ class TaskListCreateAPIView(APIView):
     )
     async def get(self, request: Request) -> Response:
         """Возвращает список задач, доступных текущему пользователю."""
-        filter_name = resolve_task_filter(request.query_params.get('filter'))
+        filter_name = resolve_task_filter(get_filter_from_request(request))
         tasks = await run_sync(lambda: list(filter_tasks_for_user(user=request.user, filter_name=filter_name)))
-        return Response(await run_sync(serialize_tasks, tasks, request=request))
+        payload = await run_sync(lambda: TaskSerializer(tasks, many=True, context={'request': request}).data)
+        return Response(payload)
 
     @extend_schema(
         tags=['tasks'],
@@ -71,7 +70,8 @@ class TaskListCreateAPIView(APIView):
         serializer = await run_sync(build_task_serializer, request=request, data=request.data)
         await run_sync(serializer.is_valid, raise_exception=True)
         task = await run_sync(serializer.save)
-        return Response(await run_sync(serialize_task, task, request=request), status=status.HTTP_201_CREATED)
+        payload = await run_sync(lambda: TaskSerializer(task, context={'request': request}).data)
+        return Response(payload, status=status.HTTP_201_CREATED)
 
 
 class TaskDetailAPIView(TaskObjectPermissionMixin, APIView):
@@ -166,7 +166,8 @@ class TaskCommentListCreateAPIView(TaskObjectPermissionMixin, APIView):
     async def get(self, request: Request, task_id: int) -> Response:
         """Возвращает список комментариев для доступной задачи."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        return Response(await run_sync(serialize_comments, task))
+        payload = await run_sync(lambda: CommentSerializer(task.comments.all(), many=True).data)
+        return Response(payload)
 
     @extend_schema(
         tags=['comments'],
@@ -185,4 +186,5 @@ class TaskCommentListCreateAPIView(TaskObjectPermissionMixin, APIView):
             task=task,
             text=str(serializer.validated_data['text']),
         )
-        return Response(await run_sync(serialize_comment, comment), status=status.HTTP_201_CREATED)
+        payload = await run_sync(lambda: CommentSerializer(comment).data)
+        return Response(payload, status=status.HTTP_201_CREATED)

@@ -6,8 +6,9 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 
+from .async_utils import run_sync
 from .models import Task
-from .view_helpers import get_request_user, get_user_task_or_404, run_sync
+from .view_helpers import get_request_user, get_user_task_or_404
 
 
 class UserTaskAccessMixin(LoginRequiredMixin):

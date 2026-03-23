@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.views import View
 
+from .async_utils import run_sync
 from .mixins import UserTaskAccessMixin
 from .selectors import filter_tasks_for_user, resolve_task_filter
 from .services import complete_task, create_comment, create_task, delete_task, reopen_task, update_task
@@ -15,10 +16,9 @@ from .view_helpers import (
     build_comment_form,
     build_task_form,
     get_async_request_user,
+    get_filter_from_request,
     get_user_task_or_404,
-    run_sync,
     task_form_context,
-    task_form_payload,
 )
 
 
@@ -26,7 +26,7 @@ from .view_helpers import (
 async def task_list_view(request: HttpRequest) -> HttpResponse:
     """Отображает список задач текущего пользователя."""
     user = await get_async_request_user(request)
-    filter_name = resolve_task_filter(request.GET.get('filter'))
+    filter_name = resolve_task_filter(get_filter_from_request(request))
     tasks = await run_sync(lambda: list(filter_tasks_for_user(user=user, filter_name=filter_name)))
     return TemplateResponse(
         request,
@@ -113,7 +113,7 @@ class TaskUpdateView(UserTaskAccessMixin, View):
                 update_task,
                 actor=user,
                 task=task,
-                data=await run_sync(task_form_payload, form),
+                data=await run_sync(form.to_update_data),
             )
             messages.success(request, 'Задача обновлена.')
             return redirect('task-detail', task_id=updated_task.pk)

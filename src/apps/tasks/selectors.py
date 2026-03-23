@@ -12,6 +12,16 @@ type TaskActor = User | AnonymousUser
 type TaskFilter = Literal['all', 'mine', 'assigned', 'completed', 'active']
 
 
+def task_base_queryset(*, with_comments: bool = True) -> QuerySet[Task]:
+    """Возвращает базовый queryset задач с основными связями."""
+    queryset = Task.objects.select_related('author', 'assignee')
+    if with_comments:
+        queryset = queryset.prefetch_related(
+            Prefetch('comments', queryset=Comment.objects.select_related('author').order_by('created_at')),
+        )
+    return queryset
+
+
 def resolve_task_filter(raw_filter: str | None) -> TaskFilter:
     """Нормализует имя фильтра задач."""
     match raw_filter:
@@ -26,11 +36,8 @@ def visible_tasks_for_user(user: TaskActor) -> QuerySet[Task]:
     if not user.is_authenticated:
         return Task.objects.none()
     return (
-        Task.objects.filter(Q(author=user) | Q(assignee=user))
-        .select_related('author', 'assignee')
-        .prefetch_related(
-            Prefetch('comments', queryset=Comment.objects.select_related('author').order_by('created_at')),
-        )
+        task_base_queryset(with_comments=True)
+        .filter(Q(author=user) | Q(assignee=user))
         .alias(
             status_order=Case(
                 When(status=TaskStatus.NEW, then=Value(0)),

@@ -90,10 +90,7 @@ class Task(models.Model):
             self.is_completed = True
             self.completed_at = self.completed_at or timezone.now()
             return
-        if self.is_completed:
-            self.status = TaskStatus.DONE
-            self.completed_at = self.completed_at or timezone.now()
-            return
+        self.is_completed = False
         self.completed_at = None
 
     def mark_completed(self) -> None:

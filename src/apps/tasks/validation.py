@@ -5,6 +5,8 @@ from .enums import TaskStatus
 
 def normalize_text(value: object) -> str:
     """Преобразует значение в строку и убирает пробелы по краям."""
+    if value is None:
+        return ''
     return str(value).strip()
 
 

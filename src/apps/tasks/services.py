@@ -73,7 +73,6 @@ def create_task(
         description=description,
         assignee=assignee,
         status=status,
-        is_completed=status == TaskStatus.DONE,
     )
     task.save()
     return task
@@ -90,7 +89,6 @@ def update_task(*, actor: User, task: Task, data: TaskUpdateData) -> Task:
     task.description = data.description
     task.status = data.status
     task.assignee = data.assignee
-    task.is_completed = data.status == TaskStatus.DONE
     task.save()
     return task
 
