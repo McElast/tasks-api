@@ -15,6 +15,7 @@
 - фронт-часть реализована с помощью шаблонов Джанго
 - база SQLite для простоты
 - реализованы типизации, проверка линтерами, тесты
+- добавлены github-actions
 
 ## Стек технологий
 - Python 3.14
@@ -93,8 +94,12 @@ API ручках.
 
 ```text
 .
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── .env.example
 ├── README.md
+├── reff.md
 ├── TASK.md
 ├── pyproject.toml
 ├── uv.lock
@@ -117,9 +122,11 @@ API ручках.
     │       ├── api/
     │       │   ├── async_api_view.py
     │       │   ├── async_support.py
+    │       │   ├── mixins.py
     │       │   ├── permissions.py
     │       │   ├── serializers.py
     │       │   ├── urls.py
+    │       │   ├── view_helpers.py
     │       │   └── views.py
     │       ├── forms/
     │       │   ├── comment_form.py
@@ -138,11 +145,14 @@ API ручках.
     │       │   └── test_views.py
     │       ├── admin.py
     │       ├── apps.py
+    │       ├── async_utils.py
     │       ├── enums.py
+    │       ├── mixins.py
     │       ├── selectors.py
     │       ├── services.py
     │       ├── urls.py
     │       ├── validation.py
+    │       ├── view_helpers.py
     │       └── views.py
     └── config/
         ├── settings/
