@@ -12,6 +12,15 @@ type TaskActor = User | AnonymousUser
 type TaskFilter = Literal['all', 'mine', 'assigned', 'completed', 'active']
 
 
+def resolve_task_filter(raw_filter: str | None) -> TaskFilter:
+    """Нормализует имя фильтра задач."""
+    match raw_filter:
+        case 'mine' | 'assigned' | 'completed' | 'active':
+            return raw_filter
+        case _:
+            return 'all'
+
+
 def visible_tasks_for_user(user: TaskActor) -> QuerySet[Task]:
     """Возвращает queryset задач, доступных пользователю."""
     if not user.is_authenticated:

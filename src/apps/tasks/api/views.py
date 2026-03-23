@@ -15,7 +15,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from ..models import Task
-from ..selectors import TaskFilter, filter_tasks_for_user
+from ..selectors import filter_tasks_for_user, resolve_task_filter
 from ..services import complete_task, create_comment, reopen_task
 from .async_api_view import AsyncAPIView
 from .permissions import TaskAccessPermission
@@ -43,19 +43,6 @@ COMMENT_CREATE_RESPONSES = {
     status.HTTP_201_CREATED: CommentSerializer,
     **TASK_ACCESS_ERROR_RESPONSES,
 }
-
-
-def _resolve_filter_name(raw_filter: str | None) -> TaskFilter:
-    """Нормализует имя фильтра задач для REST API."""
-    if raw_filter == 'mine':
-        return 'mine'
-    if raw_filter == 'assigned':
-        return 'assigned'
-    if raw_filter == 'completed':
-        return 'completed'
-    if raw_filter == 'active':
-        return 'active'
-    return 'all'
 
 
 def _task_base_queryset() -> QuerySet[Task]:
@@ -190,7 +177,7 @@ class TaskListCreateAPIView(APIView):
     )
     async def get(self, request: Request) -> Response:
         """Возвращает список задач, доступных текущему пользователю."""
-        filter_name = _resolve_filter_name(request.query_params.get('filter'))
+        filter_name = resolve_task_filter(request.query_params.get('filter'))
         tasks = await _run_sync(lambda: list(filter_tasks_for_user(user=request.user, filter_name=filter_name)))
         return Response(await _run_sync(_serialize_tasks, tasks, request=request))
 
