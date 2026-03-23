@@ -9,9 +9,9 @@ from django.template.response import TemplateResponse
 from django.views import View
 
 from .selectors import filter_tasks_for_user, resolve_task_filter
+from .mixins import UserTaskAccessMixin
 from .services import complete_task, create_comment, create_task, delete_task, reopen_task, update_task
 from .view_helpers import (
-    UserTaskAccessMixin,
     build_comment_form,
     build_task_form,
     get_async_request_user,

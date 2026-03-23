@@ -1,153 +1,32 @@
 """Полностью асинхронные REST API-представления для задач и пользователей."""
 
-from collections.abc import Callable, Mapping
-from typing import Any, Protocol, runtime_checkable
-
-from asgiref.sync import sync_to_async
-from django.contrib.auth.models import User
-from django.db.models import QuerySet
-from django.http import Http404
-from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from ..models import Task
 from ..selectors import filter_tasks_for_user, resolve_task_filter
 from ..services import complete_task, create_comment, reopen_task
-from .async_api_view import AsyncAPIView
+from .async_api_view import AsyncAPIView as APIView
+from .mixins import TaskObjectPermissionMixin
 from .permissions import TaskAccessPermission
 from .serializers import CommentSerializer, TaskSerializer, UserSerializer
-
-APIView = AsyncAPIView
-
-TASK_ACCESS_ERROR_RESPONSES = {
-    status.HTTP_403_FORBIDDEN: OpenApiResponse(description='Нет доступа.'),
-    status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Задача не найдена.'),
-}
-TASK_DETAIL_RESPONSES = {
-    status.HTTP_200_OK: TaskSerializer,
-    **TASK_ACCESS_ERROR_RESPONSES,
-}
-TASK_DELETE_RESPONSES = {
-    status.HTTP_204_NO_CONTENT: OpenApiResponse(description='Задача удалена.'),
-    **TASK_ACCESS_ERROR_RESPONSES,
-}
-COMMENT_LIST_RESPONSES = {
-    status.HTTP_200_OK: CommentSerializer(many=True),
-    **TASK_ACCESS_ERROR_RESPONSES,
-}
-COMMENT_CREATE_RESPONSES = {
-    status.HTTP_201_CREATED: CommentSerializer,
-    **TASK_ACCESS_ERROR_RESPONSES,
-}
-
-
-def _task_base_queryset() -> QuerySet[Task]:
-    """Возвращает базовый queryset задач для детальных операций API."""
-    return Task.objects.select_related('author', 'assignee').prefetch_related('comments__author')
-
-
-def _get_task_or_404(task_id: int) -> Task:
-    """Возвращает задачу по идентификатору или поднимает 404."""
-    return get_object_or_404(_task_base_queryset(), pk=task_id)
-
-
-def _as_object_payload(data: Any) -> dict[str, Any]:
-    """Преобразует данные сериализатора в словарь ответа API."""
-    if not isinstance(data, Mapping):
-        raise TypeError('Serializer data must be a mapping.')
-    return {str(key): value for key, value in data.items()}
-
-
-def _as_list_payload(data: Any) -> list[dict[str, Any]]:
-    """Преобразует список данных сериализатора в список словарей ответа API."""
-    if not isinstance(data, list):
-        raise TypeError('Serializer data must be a list.')
-    payload: list[dict[str, Any]] = []
-    for item in data:
-        if not isinstance(item, Mapping):
-            raise TypeError('Serializer list item must be a mapping.')
-        payload.append({str(key): value for key, value in item.items()})
-    return payload
-
-
-def _serialize_user(user: User) -> dict[str, Any]:
-    """Сериализует пользователя для ответа API."""
-    return _as_object_payload(UserSerializer(user).data)
-
-
-def _serialize_task(task: Task, *, request: Request) -> dict[str, Any]:
-    """Сериализует одну задачу для ответа API."""
-    return _as_object_payload(TaskSerializer(task, context={'request': request}).data)
-
-
-def _serialize_tasks(tasks: list[Task], *, request: Request) -> list[dict[str, Any]]:
-    """Сериализует список задач для ответа API."""
-    return _as_list_payload(TaskSerializer(tasks, many=True, context={'request': request}).data)
-
-
-def _serialize_comments(task: Task) -> list[dict[str, Any]]:
-    """Сериализует комментарии задачи для ответа API."""
-    return _as_list_payload(CommentSerializer(task.comments.all(), many=True).data)
-
-
-def _serialize_comment(comment: Any) -> dict[str, Any]:
-    """Сериализует один комментарий для ответа API."""
-    return _as_object_payload(CommentSerializer(comment).data)
-
-
-def _build_task_serializer(*, request: Request, instance: Task | None = None, data: Any = None) -> TaskSerializer:
-    """Создаёт сериализатор задачи для синхронной работы из async view."""
-    return TaskSerializer(instance=instance, data=data, partial=instance is not None, context={'request': request})
-
-
-def _build_comment_serializer(*, data: Any) -> CommentSerializer:
-    """Создаёт сериализатор комментария для синхронной работы из async view."""
-    return CommentSerializer(data=data)
-
-
-def _get_request_user(request: Request) -> User:
-    """Возвращает типизированного пользователя запроса."""
-    user = request.user
-    if not isinstance(user, User):
-        raise TypeError('Authenticated API request must contain django.contrib.auth User.')
-    return user
-
-
-async def _run_sync[T](func: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
-    """Выполняет sync-функцию из async view."""
-    return await sync_to_async(func)(*args, **kwargs)
-
-
-@runtime_checkable
-class SupportsObjectPermissions(Protocol):
-    """Протокол для представлений с объектной проверкой прав."""
-
-    def check_object_permissions(self, request: Request, obj: Task) -> None:
-        """Проверяет объектные права доступа."""
-
-
-class TaskObjectPermissionMixin:
-    """Переиспользуемая асинхронная загрузка задачи с объектной проверкой прав."""
-
-    async def get_task_with_permissions(self, *, request: Request, task_id: int) -> Task:
-        """Возвращает задачу и проверяет объектные права доступа."""
-        try:
-            task = await _run_sync(_get_task_or_404, task_id)
-        except Http404 as error:
-            raise Http404('Задача не найдена.') from error
-        if not isinstance(self, SupportsObjectPermissions):
-            raise TypeError('View must implement check_object_permissions().')
-        self.check_object_permissions(request, task)
-        return task
-
-    @staticmethod
-    async def task_response(request: Request, task: Task, *, status_code: int = status.HTTP_200_OK) -> Response:
-        """Сериализует задачу и возвращает стандартный Response."""
-        return Response(await _run_sync(_serialize_task, task, request=request), status=status_code)
+from .view_helpers import (
+    COMMENT_CREATE_RESPONSES,
+    COMMENT_LIST_RESPONSES,
+    TASK_DELETE_RESPONSES,
+    TASK_DETAIL_RESPONSES,
+    build_comment_serializer,
+    build_task_serializer,
+    get_request_user,
+    run_sync,
+    serialize_comment,
+    serialize_comments,
+    serialize_task,
+    serialize_tasks,
+    serialize_user,
+)
 
 
 class UserMeAPIView(APIView):
@@ -162,7 +41,7 @@ class UserMeAPIView(APIView):
     )
     async def get(self, request: Request) -> Response:
         """Сериализует текущего пользователя и возвращает ответ API."""
-        return Response(await _run_sync(_serialize_user, _get_request_user(request)))
+        return Response(await run_sync(serialize_user, get_request_user(request)))
 
 
 class TaskListCreateAPIView(APIView):
@@ -178,8 +57,8 @@ class TaskListCreateAPIView(APIView):
     async def get(self, request: Request) -> Response:
         """Возвращает список задач, доступных текущему пользователю."""
         filter_name = resolve_task_filter(request.query_params.get('filter'))
-        tasks = await _run_sync(lambda: list(filter_tasks_for_user(user=request.user, filter_name=filter_name)))
-        return Response(await _run_sync(_serialize_tasks, tasks, request=request))
+        tasks = await run_sync(lambda: list(filter_tasks_for_user(user=request.user, filter_name=filter_name)))
+        return Response(await run_sync(serialize_tasks, tasks, request=request))
 
     @extend_schema(
         tags=['tasks'],
@@ -189,10 +68,10 @@ class TaskListCreateAPIView(APIView):
     )
     async def post(self, request: Request) -> Response:
         """Создаёт задачу через сериализатор и сервисный слой."""
-        serializer = await _run_sync(_build_task_serializer, request=request, data=request.data)
-        await _run_sync(serializer.is_valid, raise_exception=True)
-        task = await _run_sync(serializer.save)
-        return Response(await _run_sync(_serialize_task, task, request=request), status=status.HTTP_201_CREATED)
+        serializer = await run_sync(build_task_serializer, request=request, data=request.data)
+        await run_sync(serializer.is_valid, raise_exception=True)
+        task = await run_sync(serializer.save)
+        return Response(await run_sync(serialize_task, task, request=request), status=status.HTTP_201_CREATED)
 
 
 class TaskDetailAPIView(TaskObjectPermissionMixin, APIView):
@@ -219,9 +98,9 @@ class TaskDetailAPIView(TaskObjectPermissionMixin, APIView):
     async def patch(self, request: Request, task_id: int) -> Response:
         """Обновляет задачу через сериализатор и сервисный слой."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        serializer = await _run_sync(_build_task_serializer, request=request, instance=task, data=request.data)
-        await _run_sync(serializer.is_valid, raise_exception=True)
-        updated_task = await _run_sync(serializer.save)
+        serializer = await run_sync(build_task_serializer, request=request, instance=task, data=request.data)
+        await run_sync(serializer.is_valid, raise_exception=True)
+        updated_task = await run_sync(serializer.save)
         return await self.task_response(request, updated_task)
 
     @extend_schema(
@@ -232,7 +111,7 @@ class TaskDetailAPIView(TaskObjectPermissionMixin, APIView):
     async def delete(self, request: Request, task_id: int) -> Response:
         """Удаляет задачу, если это делает её автор."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        await _run_sync(task.delete)
+        await run_sync(task.delete)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -251,7 +130,7 @@ class TaskCompleteAPIView(TaskObjectPermissionMixin, APIView):
     async def post(self, request: Request, task_id: int) -> Response:
         """Переводит задачу в статус done."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        updated_task = await _run_sync(complete_task, actor=_get_request_user(request), task=task)
+        updated_task = await run_sync(complete_task, actor=get_request_user(request), task=task)
         return await self.task_response(request, updated_task)
 
 
@@ -270,7 +149,7 @@ class TaskReopenAPIView(TaskObjectPermissionMixin, APIView):
     async def post(self, request: Request, task_id: int) -> Response:
         """Снимает признак завершённости с задачи."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        updated_task = await _run_sync(reopen_task, actor=_get_request_user(request), task=task)
+        updated_task = await run_sync(reopen_task, actor=get_request_user(request), task=task)
         return await self.task_response(request, updated_task)
 
 
@@ -287,7 +166,7 @@ class TaskCommentListCreateAPIView(TaskObjectPermissionMixin, APIView):
     async def get(self, request: Request, task_id: int) -> Response:
         """Возвращает список комментариев для доступной задачи."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        return Response(await _run_sync(_serialize_comments, task))
+        return Response(await run_sync(serialize_comments, task))
 
     @extend_schema(
         tags=['comments'],
@@ -298,12 +177,12 @@ class TaskCommentListCreateAPIView(TaskObjectPermissionMixin, APIView):
     async def post(self, request: Request, task_id: int) -> Response:
         """Создаёт комментарий через сервисный слой."""
         task = await self.get_task_with_permissions(request=request, task_id=task_id)
-        serializer = await _run_sync(_build_comment_serializer, data=request.data)
-        await _run_sync(serializer.is_valid, raise_exception=True)
-        comment = await _run_sync(
+        serializer = await run_sync(build_comment_serializer, data=request.data)
+        await run_sync(serializer.is_valid, raise_exception=True)
+        comment = await run_sync(
             create_comment,
-            actor=_get_request_user(request),
+            actor=get_request_user(request),
             task=task,
             text=str(serializer.validated_data['text']),
         )
-        return Response(await _run_sync(_serialize_comment, comment), status=status.HTTP_201_CREATED)
+        return Response(await run_sync(serialize_comment, comment), status=status.HTTP_201_CREATED)
