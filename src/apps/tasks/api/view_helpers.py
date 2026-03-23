@@ -111,6 +111,3 @@ def get_request_user(request: Request) -> User:
 async def run_sync[T](func: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
     """Выполняет sync-функцию из async view."""
     return await sync_to_async(func)(*args, **kwargs)
-
-
-@runtime_checkable

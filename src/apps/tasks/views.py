@@ -8,8 +8,8 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.views import View
 
-from .selectors import filter_tasks_for_user, resolve_task_filter
 from .mixins import UserTaskAccessMixin
+from .selectors import filter_tasks_for_user, resolve_task_filter
 from .services import complete_task, create_comment, create_task, delete_task, reopen_task, update_task
 from .view_helpers import (
     build_comment_form,
